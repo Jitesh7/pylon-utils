@@ -84,12 +84,25 @@ void recurse_node(INode* node, int depth) {
                 std::cout << bind << "Entries:\n\n";
                 for (NodeList_t::const_iterator j=entries.begin();
                      j!=entries.end(); ++j) {
+                    
                     INode* node = *j;
                     IEnumEntry* entry = dynamic_cast<IEnumEntry*>(*j);
                     gcstring sym = entry->GetSymbolic();
-                    if (std::find(symbolics.begin(), symbolics.end(), sym) != symbolics.end())  {
+
+                    bool found = false;
+                    
+                    for (StringList_t::const_iterator k=symbolics.begin();
+                         k!=symbolics.end(); ++k) {
+                        if (*k == sym) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (found) {
                         std::cout << bind << "  " << sym << " - " << node->GetToolTip() << "\n";
                     }
+                    
                 }
 
 

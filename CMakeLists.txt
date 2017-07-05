@@ -18,7 +18,7 @@ if(APPLE)
 else()
   set(BASLER_PYLON_INCLUDE_PATH /opt/pylon5/include)
   set(BASLER_PYLON_LIBRARY pylonbase pylonutility GenApi_gcc_v3_0_Basler_pylon_v5_0 GCBase_gcc_v3_0_Basler_pylon_v5_0)
-  link_directories(/opt/pylon5/lib64)
+  link_directories(/opt/pylon5/lib64 /opt/pylon5/lib)
   include_directories(${BASLER_PYLON_INCLUDE_PATH})
 endif()
 

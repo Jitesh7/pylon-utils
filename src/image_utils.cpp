@@ -15,10 +15,6 @@ void ycbcr422_to_jpeg(const char* filename,
         throw std::runtime_error("ycbcr_422_to_jpeg: image width must be divisible by 8!");
     }
 
-    if (height % 16) {
-        throw std::runtime_error("ycbcr_422_to_jpeg: image height must be divisible by 16!");
-    }
-
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
 
@@ -78,6 +74,8 @@ void ycbcr422_to_jpeg(const char* filename,
         cr[i] = &(cr_data[0]) + i*uvstride;
     }
 
+    JDIMENSION src_row = 0;
+
     // TODO: deal with padding in y to 16 rows and padding in x to 8 cols
     while (cinfo.next_scanline < cinfo.image_height) {
 
@@ -100,8 +98,13 @@ void ycbcr422_to_jpeg(const char* filename,
                 yuv_px += 4;
 
             }
-            
-            yuv += stride;
+
+            // pad MCU by duplicating last row
+
+            if (src_row+1 < cinfo.image_height) {
+                yuv += stride;
+                ++src_row;
+            }
             
         }
         

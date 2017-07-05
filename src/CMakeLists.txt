@@ -1,6 +1,6 @@
 # TODO: stuff
 
-add_library(basler_utils basler_utils.cpp ycbcr_to_jpeg.cpp)
+add_library(basler_utils basler_opencv_utils.cpp basler_utils.cpp image_utils.cpp)
 
 add_executable(list-params list-params.cpp)
 target_link_libraries(list-params basler_utils ${BASLER_PYLON_LIBRARY})

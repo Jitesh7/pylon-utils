@@ -154,8 +154,6 @@ bool load_image_raw(std::istream& istr, CPylonImage& image) {
         
     }
 
-    std::cout << "read image size " << image_size << " width " << width << " height " << height << "\n";
-
     std::vector<uint8_t> buf(image_size);
 
     istr.read((char*)&buf[0], image_size);

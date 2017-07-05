@@ -1,5 +1,6 @@
 #include "basler_utils.h"
-#include "ycbcr_to_jpeg.h"
+#include "basler_opencv_utils.h"
+#include "image_utils.h"
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -7,108 +8,94 @@
 
 using namespace Pylon;
 
-void make_test_image_bgr8packed(size_t size, size_t stride,
-                                uint8_t* data) {
-
-    uint8_t* rowptr = data;
-
-    for (size_t row=0; row<size; ++row) {
-
-        uint8_t* dst = rowptr;
-        
-        for (size_t col=0; col<size; ++col) {
-
-            if (row + col < size) {
-                
-                float r = float(col) / (size-1);
-                float b = float(row) / (size-1);
-                float g = 1.0 - r - b;
-
-                dst[0] = 255*b;
-                dst[1] = 255*g;
-                dst[2] = 255*r;
-
-            } else {
-
-                float l = float(row + col - size) / (size);
-
-                dst[0] = dst[1] = dst[2] = 255*l;
-                
-            }
-            
-
-            dst += 3;
-            
-        }
-
-        rowptr += stride;
-        
-    }
-    
-}
-
-void ycbcr444_to_ycbcr_422(const uint8_t* src,
-                           size_t width, size_t height, size_t src_stride,
-                           uint8_t* dst, size_t dst_stride) {
-
-    const uint8_t* src_row = src;
-    uint8_t* dst_row = dst;
-
-    for (size_t row=0; row<height; ++row) {
-
-        const uint8_t* src_px = src_row;
-        uint8_t* dst_px = dst_row;
-        
-        for (size_t col=0; col<width; ++col) {
-
-            uint8_t y = src_px[0];
-            uint8_t cb = src_px[1];
-            uint8_t cr = src_px[2];
-
-            dst_px[0] = (col % 2 == 0) ? cb : cr;
-            dst_px[1] = y;
-
-            src_px += 3;
-            dst_px += 2;
-            
-        }
-
-        src_row += src_stride;
-        dst_row += dst_stride;
-            
-    }
-
-}
                            
-
-
 int main(int argc, char** argv) {
 
     PylonInitialize();
 
     try {
 
-        CPylonImage pylonInput;
-        bool ok = load_image_raw("../images/debug_YCbCr422_8.pylon_raw", pylonInput);
-        if (!ok) {
+        CPylonImage p_yuv;
+        CPylonImage p_bayer;
+        
+        if (!(load_image_raw("../images/debug_YCbCr422_8.pylon_raw", p_yuv) &&
+              load_image_raw("../images/debug_BayerBG8.pylon_raw", p_bayer))) {
+
             std::cout << "error loading image!\n";
+            exit(1);
+
         }
 
-        ycbcr_422_to_jpeg("foo.jpg", 70,
-                          pylonInput.GetWidth(),
-                          pylonInput.GetHeight(),
-                          2*pylonInput.GetWidth() + pylonInput.GetPaddingX(),
-                          (const uint8_t*)pylonInput.GetBuffer());
-                      
+        uint32_t width = p_yuv.GetWidth();
+        uint32_t height = p_yuv.GetHeight();
 
+        if (p_bayer.GetWidth() != width ||
+            p_bayer.GetHeight() != height) {
+            
+            std::cout << "size mismatch!\n";
+            exit(1);
 
-        /*
-        cv::Mat result = cv::imread("foo.jpg");
-        cv::namedWindow("win");
-        cv::imshow("win", result);
-        cv::waitKey();
-        */
+        }
 
+        std::cout << "loaded YUV & Bayer input images with size " << width << "x" << height << "\n";
+
+        ycbcr422_to_jpeg("ycbr422.jpg", 100,
+                         width, height, 
+                         2*width + p_yuv.GetPaddingX(),
+                         (const uint8_t*)p_yuv.GetBuffer());
+
+        std::cout << "wrote ycbr422.jpg\n";
+
+        CImageFormatConverter fc;
+        fc.OutputPixelFormat = PixelType_BGR8packed;
+
+        CPylonImage p_yuv2rgb;
+        fc.Convert(p_yuv2rgb, p_yuv);
+        std::cout << "converted YUV -> RGB\n";
+
+        cv::imwrite("ycbr422.png", pylon_to_cv(p_yuv2rgb));
+        std::cout << "wrote ycbr422.png\n";
+
+        cv::Mat cv_bayer = pylon_to_cv(p_bayer);
+        cv::Mat cv_bayer2(cv_bayer.size(), CV_8U);
+        cv::Mat cv_bayer3(cv_bayer.size(), CV_8U);
+
+        cv::imwrite("bayerBG8_raw.png", cv_bayer);
+        std::cout << "wrote bayerBG8_raw.png\n";
+
+        bayer_shuffle(width, height,
+                      cv_bayer.data, width,
+                      cv_bayer2.data, width);
+        
+        std::cout << "shuffled Bayer data\n";
+        
+        cv::imwrite("bayerBG8_raw2.png", cv_bayer2);
+        std::cout << "wrote bayerBG8_raw2.png\n";
+
+        bayer_unshuffle(width, height,
+                        cv_bayer2.data, width,
+                        cv_bayer3.data, width);
+        
+        std::cout << "unshuffled Bayer data\n";
+        
+        cv::imwrite("bayerBG8_raw3.png", cv_bayer3);
+        std::cout << "wrote bayerBG8_raw3.png\n";
+        
+        CPylonImage p_bayer2rgb;
+        fc.Convert(p_bayer2rgb, p_bayer);
+        std::cout << "used Pylon to convert Bayer -> RGB\n";
+
+        cv::imwrite("bayerBG8_p.png", pylon_to_cv(p_bayer2rgb));
+        std::cout << "wrote bayerBG8_p.png\n";
+
+        cv::Mat cv_bayer2rgb_cv;
+
+        cv::cvtColor(cv_bayer, cv_bayer2rgb_cv, CV_BayerBG2RGB);
+        std::cout << "used OpenCV to convert Bayer -> RGB\n";
+
+        cv::imwrite("bayerBG8_cv.png", cv_bayer2rgb_cv);
+        std::cout << "wrote bayerBG8_cv.png\n";
+        
     } catch (GenericException& e) {
 
         std::cerr << "error: " << e.GetDescription() << "\n";

@@ -1,4 +1,5 @@
 #include "basler_opencv_utils.h"
+#include <stdexcept>
 
 cv::Mat pylon_to_cv(const Pylon::CPylonImage& pylon_image) {
                     

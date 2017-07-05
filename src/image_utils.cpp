@@ -3,6 +3,7 @@
 #include <jpeglib.h>
 #include <string.h>
 #include <vector>
+#include <stdexcept>
 
 void ycbcr422_to_jpeg(const char* filename,
                       int quality,

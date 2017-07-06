@@ -1,6 +1,5 @@
-#include <pylon/PylonIncludes.h>
+#include "basler_opencv_utils.h"
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/core/core.hpp>
 #include <iostream>
 
 using namespace Pylon;
@@ -17,31 +16,8 @@ int main(int argc, char** argv) {
         CInstantCamera camera( CTlFactory::GetInstance().CreateFirstDevice());
 
         camera.Open();
-
     
         std::cout << "opened camera.\n";
-
-
-        /*
-
-        INodeMap &control = camera.GetNodeMap();
-        CValuePtr pfmt(control.GetNode("PixelFormat"));
-        pfmt->FromString("YCbCr422_8");
-        pfmt->FromString("BGR8");
-        pfmt->FromString("BayerBG8");
-        
-        pfmt->FromString("YCbCr422_8");
-
-        CValuePtr timg(control.GetNode("TestImageSelector"));
-        timg->FromString("Testimage6");
-
-        CIntegerPtr hdec(control.GetNode("DecimationHorizontal"));
-        hdec->SetValue(1);
-
-        CIntegerPtr vdec(control.GetNode("DecimationVertical"));
-        vdec->SetValue(1);
-        */
-
 
         camera.StartGrabbing();
 
@@ -67,25 +43,21 @@ int main(int argc, char** argv) {
                 size_t stride;
                 bool ok = ptrGrabResult->GetStride(stride);
 
-                size_t extra = 2*width-stride;
-
                 std::cout << "got a frame with size " << width << "x" << height << "\n";
-                std::cout << "ok is " << ok << " and stride is " << stride << "\n";
-                std::cout << "I get extra is " << extra << " and result is " << ptrGrabResult->GetPaddingX() << "\n";
 
                 fc.Convert(image, ptrGrabResult);
 
-                cv::Mat cimg(ptrGrabResult->GetHeight(), ptrGrabResult->GetWidth(),
-                             CV_8UC3, (uint8_t *)image.GetBuffer());
-
-                cv::imshow("display", cimg);
-                cv::waitKey(5);
+                cv::imshow("display", pylon_to_cv(image));
+                
+                int k = cv::waitKey(5);
+                
+                if (k == 27) {
+                    break;
+                }
         
-
             }
 
         }
-
 
     } catch (const GenericException& e) {
 

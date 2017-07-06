@@ -8,6 +8,7 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 find_library(JPEG_LIBRARY jpeg)
+find_library(PNG_LIBRARY png)
 
 if(APPLE)
   include_directories(/opt/local/include) # MacPorts

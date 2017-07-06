@@ -1,11 +1,15 @@
 #include "image_utils.h"
 #include <stdio.h>
 #include <jpeglib.h>
+#include <png.h>
 #include <string.h>
 #include <vector>
+#include <setjmp.h>
 #include <stdexcept>
+#include <iostream>
+#include <zlib.h>
 
-void ycbcr422_to_jpeg(const char* filename,
+void ycbcr422_to_jpeg(FILE* fp,
                       int quality,
                       size_t width,
                       size_t height,
@@ -19,14 +23,12 @@ void ycbcr422_to_jpeg(const char* filename,
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
 
-    FILE* outfile = fopen(filename, "wb");
-
     memset(&cinfo, 0, sizeof(cinfo));
     
     cinfo.err = jpeg_std_error(&jerr);
 
     jpeg_create_compress(&cinfo);
-    jpeg_stdio_dest(&cinfo, outfile);
+    jpeg_stdio_dest(&cinfo, fp);
 
     //////////////////////////////////////////////////////////////////////
 
@@ -34,8 +36,11 @@ void ycbcr422_to_jpeg(const char* filename,
     cinfo.image_height = height;
     cinfo.input_components = 3;
     cinfo.in_color_space = JCS_YCbCr;
+
     
     jpeg_set_defaults(&cinfo);
+
+    cinfo.dct_method = JDCT_IFAST;
     
     jpeg_set_colorspace(&cinfo, JCS_YCbCr);
     jpeg_set_quality(&cinfo, quality, TRUE);
@@ -115,11 +120,85 @@ void ycbcr422_to_jpeg(const char* filename,
     
     jpeg_finish_compress(&cinfo);
 
-    fclose(outfile);
-
 }
 
 
+void write_png(FILE* fp,
+               png_pixel_format_t format,
+               int compression_level,
+               size_t width,
+               size_t height,
+               size_t stride,
+               const uint8_t* data) {
+
+    int color_type;
+
+    if (format == PNG_PIXEL_FORMAT_GRAY) {
+        color_type = PNG_COLOR_TYPE_GRAY;
+    } else if (format == PNG_PIXEL_FORMAT_RGB ||
+               format == PNG_PIXEL_FORMAT_BGR) {
+        color_type = PNG_COLOR_TYPE_RGB;
+    } else {
+        throw std::runtime_error("invalid pixel format in write_png");
+    }
+
+    png_structp png_ptr = png_create_write_struct
+        (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+
+    if (!png_ptr) {
+        throw std::runtime_error("error creating png write struct");
+    }
+  
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+        throw std::runtime_error("error creating png info struct");
+    }  
+
+    /*
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        throw std::runtime_error("error writing PNG");
+    }
+    */
+
+    png_init_io(png_ptr, fp);
+
+    png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_SUB);
+    png_set_compression_level(png_ptr, compression_level);
+    png_set_compression_strategy(png_ptr, Z_RLE);
+    
+    png_set_IHDR(png_ptr, info_ptr, 
+                 width, height,
+                 8, 
+                 color_type,
+                 PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT,
+                 PNG_FILTER_TYPE_DEFAULT);
+
+    png_write_info(png_ptr, info_ptr);
+
+    if (format == PNG_PIXEL_FORMAT_BGR) {
+        png_set_bgr(png_ptr);
+    }
+    
+    std::vector<png_byte*> rowptrs(height);
+    
+    const uint8_t* srcp = data;
+
+    for (size_t i=0; i<height; ++i) {
+        rowptrs[i] = (png_byte*)srcp;
+        srcp += stride;
+    }
+
+    png_write_image(png_ptr, &rowptrs[0]);
+
+    png_write_end(png_ptr, info_ptr);
+
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+
+    
+}
 
 
 void ycbcr444_to_ycbcr_422(const uint8_t* src,
@@ -160,9 +239,9 @@ void ycbcr444_to_ycbcr_422(const uint8_t* src,
 
 }
 
-void bayer_shuffle(size_t width, size_t height, 
-                   const uint8_t* src, size_t src_stride,
-                   uint8_t* dst, size_t dst_stride) {
+void bayer_deinterleave(size_t width, size_t height, 
+                        const uint8_t* src, size_t src_stride,
+                        uint8_t* dst, size_t dst_stride) {
 
     if (width % 2 || height % 2) {
         throw std::runtime_error("image dimensions must be divisible by 2!\n");
@@ -192,9 +271,9 @@ void bayer_shuffle(size_t width, size_t height,
 
 }
 
-void bayer_unshuffle(size_t width, size_t height, 
-                     const uint8_t* src, size_t src_stride,
-                     uint8_t* dst, size_t dst_stride) {
+void bayer_interleave(size_t width, size_t height, 
+                      const uint8_t* src, size_t src_stride,
+                      uint8_t* dst, size_t dst_stride) {
 
     if (width % 2 || height % 2) {
         throw std::runtime_error("image dimensions must be divisible by 2!\n");

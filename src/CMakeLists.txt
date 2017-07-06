@@ -4,8 +4,8 @@ add_library(basler_utils basler_opencv_utils.cpp basler_utils.cpp image_utils.cp
 
 set(libs basler_utils ${BASLER_PYLON_LIBRARY} ${OPENCV_LIBRARIES} ${JPEG_LIBRARY} ${PNG_LIBRARY})
 
-add_executable(list-params list-params.cpp)
-target_link_libraries(list-params ${libs})
+add_executable(list_params list_params.cpp)
+target_link_libraries(list_params ${libs})
 
 add_executable(cvdemo cvdemo.cpp)
 target_link_libraries(cvdemo ${libs})

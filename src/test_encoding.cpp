@@ -10,20 +10,29 @@
 using namespace Pylon;
 
 #ifdef __APPLE__
-
 #include <mach/mach_time.h>
+#else
+#include <time.h>
+#endif
 
 class StopWatch {
 public:
 
+#ifdef __APPLE__
     static mach_timebase_info_data_t timebase;
+#else
+    static uint64_t absolute_time() {
+        struct timespec ts;
+        const uint64_t GIGA = 1000000000ULL;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return uint64_t(ts.tv_sec)*GIGA + uint64_t(ts.tv_nsec);
+    }
+#endif
+
     uint64_t start;
     const char* msg;
 
     StopWatch(const char* m=0): msg(m) {
-        if (timebase.denom == 0) {
-            mach_timebase_info(&timebase);
-        }
         restart();
     }
 
@@ -34,12 +43,23 @@ public:
     }
 
     void restart() {
+#ifdef __APPLE__
+        if (timebase.denom == 0) {
+            mach_timebase_info(&timebase);
+        }
         start = mach_absolute_time();
+#else
+        start = absolute_time();
+#endif
     }
 
     uint64_t elapsedNano() {
+#ifdef __APPLE__
         uint64_t now = mach_absolute_time();
         return (now - start) * timebase.numer / timebase.denom;
+#else
+        return absolute_time() - start;
+#endif
     }
 
     double elapsedSec() {
@@ -53,10 +73,10 @@ public:
     
 };
 
-
+#ifdef __APPLE__
 mach_timebase_info_data_t StopWatch::timebase;
-
 #endif
+
 
 class OutputFileWrapper {
 public:

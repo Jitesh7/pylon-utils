@@ -90,7 +90,7 @@ public:
     
     ~OutputFileWrapper() {
         fflush(fp);
-        fsync(fileno(fp));
+        fsync(fileno(fp)); // make sure writes go to disk for benchmarking!
         fclose(fp);
     }
     
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
         }
 
         {
-            StopWatch w("wrote ycbr422.png");
+            StopWatch w("wrote ycbr422.png via libpng");
             write_png("ycbr422.png", p_yuv2rgb);
         }
         
@@ -233,6 +233,7 @@ int main(int argc, char** argv) {
         {
             StopWatch w("wrote bayerBG8_cv.png");
             cv::imwrite("bayerBG8_cv.png", cv_bayer2rgb_cv);
+            sync(); // my write_png calls fsync() for benchmarking purposes, opencv doesn't
         }
         
     } catch (GenericException& e) {

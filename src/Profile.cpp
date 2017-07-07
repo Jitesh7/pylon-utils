@@ -8,7 +8,11 @@
 #endif
 
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+
+static mach_timebase_info_data_t timebase;
+
+#else
 
 static uint64_t absolute_time() {
     struct timespec ts;
@@ -20,7 +24,6 @@ static uint64_t absolute_time() {
 #endif
 
 
-static mach_timebase_info_data_t timebase;
 
 StopWatch::StopWatch() { restart(); }
 

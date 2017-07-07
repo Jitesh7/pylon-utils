@@ -1,6 +1,7 @@
 #include "basler_utils.h"
 #include "basler_opencv_utils.h"
 #include "image_utils.h"
+#include "Profile.h"
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -9,73 +10,6 @@
 
 using namespace Pylon;
 
-#ifdef __APPLE__
-#include <mach/mach_time.h>
-#else
-#include <time.h>
-#endif
-
-class StopWatch {
-public:
-
-#ifdef __APPLE__
-    static mach_timebase_info_data_t timebase;
-#else
-    static uint64_t absolute_time() {
-        struct timespec ts;
-        const uint64_t GIGA = 1000000000ULL;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return uint64_t(ts.tv_sec)*GIGA + uint64_t(ts.tv_nsec);
-    }
-#endif
-
-    uint64_t start;
-    const char* msg;
-
-    StopWatch(const char* m=0): msg(m) {
-        restart();
-    }
-
-    ~StopWatch() {
-        if (msg) {
-            report(msg);
-        }
-    }
-
-    void restart() {
-#ifdef __APPLE__
-        if (timebase.denom == 0) {
-            mach_timebase_info(&timebase);
-        }
-        start = mach_absolute_time();
-#else
-        start = absolute_time();
-#endif
-    }
-
-    uint64_t elapsedNano() {
-#ifdef __APPLE__
-        uint64_t now = mach_absolute_time();
-        return (now - start) * timebase.numer / timebase.denom;
-#else
-        return absolute_time() - start;
-#endif
-    }
-
-    double elapsedSec() {
-        return elapsedNano() * 1e-9;
-    }
-
-    void report(const char* stuff) {
-        double t = elapsedSec();
-        std::cout << stuff << " in " << t << "s.\n";
-    }
-    
-};
-
-#ifdef __APPLE__
-mach_timebase_info_data_t StopWatch::timebase;
-#endif
 
 
 class OutputFileWrapper {
@@ -146,15 +80,12 @@ int main(int argc, char** argv) {
         std::cout << "loaded YUV & Bayer input images with size "
                   << width << "x" << height << "\n";
 
-        {
-            StopWatch w("wrote ycbr422.jpg");
-            {
-                OutputFileWrapper wrapper("ycbr422.jpg");
-                ycbcr422_to_jpeg(wrapper.fp, 100,
-                                 width, height, 
-                                 2*width + p_yuv.GetPaddingX(),
-                                 (const uint8_t*)p_yuv.GetBuffer());
-            }
+        PROFILE("wrote ycbr422.jpg") {
+            OutputFileWrapper wrapper("ycbr422.jpg");
+            ycbcr422_to_jpeg(wrapper.fp, 100,
+                             width, height, 
+                             2*width + p_yuv.GetPaddingX(),
+                             (const uint8_t*)p_yuv.GetBuffer());
         }
 
         CImageFormatConverter fc;
@@ -162,13 +93,11 @@ int main(int argc, char** argv) {
 
         CPylonImage p_yuv2rgb;
 
-        {
-            StopWatch w("converted YUV -> RGB");
+        PROFILE("converted YUV -> RGB") {
             fc.Convert(p_yuv2rgb, p_yuv);
         }
 
-        {
-            StopWatch w("wrote ycbr422.png via libpng");
+        PROFILE("wrote ycbr422.png via libpng") {
             write_png("ycbr422.png", p_yuv2rgb);
         }
         
@@ -178,60 +107,50 @@ int main(int argc, char** argv) {
         CPylonImage p_bayer3 = CPylonImage::Create(PixelType_Mono8,
                                                    width, height);
 
-        {
-            StopWatch w("wrote bayerBG8_raw.png");
+        PROFILE ("wrote bayerBG8_raw.png") {
             write_png("bayerBG8_raw.png", p_bayer);
         }
 
-        {
-            StopWatch w("de-interleaved bayer data");
+        PROFILE("de-interleaved bayer data") {
             bayer_deinterleave(width, height,
                                (const uint8_t*)p_bayer.GetBuffer(), width,
                                (uint8_t*)p_bayer2.GetBuffer(), width);
         }
         
-        {
-            StopWatch w("wrote bayerBG8_raw2.png");
+        PROFILE("wrote bayerBG8_raw2.png") {
             write_png("bayerBG8_raw2.png", p_bayer2);
         }
 
-
-        {
-            StopWatch w("re-interleaved bayer data (same as orig)");
+        PROFILE("re-interleaved bayer data (same as orig)") {
             bayer_interleave(width, height,
                              (const uint8_t*)p_bayer2.GetBuffer(), width,
                              (uint8_t*)p_bayer3.GetBuffer(), width);
 
         }
 
-        {
-            StopWatch w("wrote bayerBG8_raw3.png");
+        PROFILE("wrote bayerBG8_raw3.png") {
             write_png("bayerBG8_raw3.png", p_bayer3);
         }
 
         CPylonImage p_bayer2rgb;
         
-        {
-            StopWatch w("used Pylon to convert Bayer -> RGB");
+        PROFILE("used Pylon to convert Bayer -> RGB") {
             fc.Convert(p_bayer2rgb, p_bayer);
         }
 
-        {
-            StopWatch w("wrote bayerBG8_p.png");
+        PROFILE("wrote bayerBG8_p.png") {
             write_png("bayerBG8_p.png", p_bayer2rgb);
         }
             
 
         cv::Mat cv_bayer2rgb_cv;
 
-        {
-            StopWatch w("used OpenCV to convert Bayer -> RGB");
+        PROFILE("used OpenCV to convert Bayer -> RGB") {
             cv::cvtColor(pylon_to_cv(p_bayer),
                          cv_bayer2rgb_cv, CV_BayerBG2RGB);
         }
 
-        {
-            StopWatch w("wrote bayerBG8_cv.png");
+        PROFILE ("wrote bayerBG8_cv.png") {
             cv::imwrite("bayerBG8_cv.png", cv_bayer2rgb_cv);
             sync(); // my write_png calls fsync() for benchmarking purposes, opencv doesn't
         }

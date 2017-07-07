@@ -1,6 +1,6 @@
 # TODO: stuff
 
-add_library(basler_utils basler_opencv_utils.cpp basler_utils.cpp image_utils.cpp)
+add_library(basler_utils basler_opencv_utils.cpp basler_utils.cpp image_utils.cpp Profile.cpp)
 
 set(libs basler_utils ${BASLER_PYLON_LIBRARY} ${OPENCV_LIBRARIES} ${JPEG_LIBRARY} ${PNG_LIBRARY})
 
